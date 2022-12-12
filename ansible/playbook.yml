@@ -1,0 +1,10 @@
+---
+- name: 'Install monitoring and logging'
+  become: true
+  hosts: monlog
+
+  roles: 
+  - prometheus
+  - node-exporter
+  - elasticsearch-kibana
+  - fluentbit
