@@ -1,0 +1,122 @@
+---
+- name: Include OS-specific variables for Fedora or FreeBSD.
+  include_vars: "{{ ansible_distribution }}.yml"
+  when: ansible_distribution == 'FreeBSD' or ansible_distribution == 'Fedora'
+
+- name: Include version-specific variables for CentOS/RHEL.
+  include_vars: "RedHat-{{ ansible_distribution_version.split('.')[0] }}.yml"
+  when: >-
+    ansible_distribution in [
+      'CentOS',
+      'Red Hat Enterprise Linux',
+      'RedHat',
+      'Rocky',
+      'AlmaLinux'
+    ]
+
+- name: Include version-specific variables for Ubuntu.
+  include_vars: "{{ ansible_distribution }}-{{ ansible_distribution_version.split('.')[0] }}.yml"
+  when: ansible_distribution == 'Ubuntu'
+
+- name: Include version-specific variables for Debian.
+  include_vars: "{{ ansible_distribution | title }}-{{ ansible_distribution_version.split('.')[0] }}.yml"
+  when: ansible_os_family == 'Debian'
+
+- name: Define java_packages.
+  set_fact:
+    java_packages: "{{ __java_packages | list }}"
+  when: java_packages is not defined
+
+# Setup/install tasks.
+- include_tasks: setup-Java-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+
+- include_tasks: setup-Java-Debian.yml
+  when: ansible_os_family == 'Debian'
+
+# Environment setup.
+- name: Set JAVA_HOME if configured.
+  template:
+    src: java_home.sh.j2
+    dest: /etc/profile.d/java_home.sh
+    mode: 0644
+  when: java_home is defined and java_home
+
+- include_tasks: setup-Elastic-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+
+- include_tasks: setup-Elastic-Debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Install Elasticsearch.
+  package:
+    name: "{{ elasticsearch_package }}"
+    state: "{{ elasticsearch_package_state }}"
+
+- name: Configure Elasticsearch 6 or below.
+  template:
+    src: "{{ item | basename }}.j2"
+    dest: "{{ item }}"
+    owner: root
+    group: elasticsearch
+    mode: 0660
+  with_items:
+    - /etc/elasticsearch/elasticsearch.yml
+    - /etc/elasticsearch/jvm.options
+  notify: restart elasticsearch
+  when: elasticsearch_version[0] | int < 7
+
+- name: Configure Elasticsearch 7+.
+  template:
+    src: "{{ item | basename }}.j2"
+    dest: "{{ item }}"
+    owner: root
+    group: elasticsearch
+    mode: 0660
+  with_items:
+    - /etc/elasticsearch/elasticsearch.yml
+    - /etc/elasticsearch/jvm.options.d/heap.options
+  notify: restart elasticsearch
+  when: elasticsearch_version[0] | int >= 7
+
+- name: Force a restart if configuration has changed.
+  meta: flush_handlers
+
+- name: Start Elasticsearch.
+  service:
+    name: elasticsearch
+    state: "{{ elasticsearch_service_state }}"
+    enabled: "{{ elasticsearch_service_enabled }}"
+
+- name: Make sure Elasticsearch is running before proceeding.
+  wait_for:
+    host: "{{ elasticsearch_network_host }}"
+    port: "{{ elasticsearch_http_port }}"
+    delay: 3
+    timeout: 300
+
+- include: setup-Kibana-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+
+- include: setup-Kibana-Debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Install Kibana.
+  package:
+    name: "{{ kibana_package }}"
+    state: "{{ kibana_package_state }}"
+
+- name: Ensure Kibana is started and enabled at boot.
+  service:
+    name: kibana
+    state: "{{ kibana_service_state }}"
+    enabled: "{{ kibana_service_enabled }}"
+
+- name: Copy Kibana configuration.
+  template:
+    src: "{{ kibana_config_template }}"
+    dest: "{{ kibana_config_file_path }}"
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart kibana
