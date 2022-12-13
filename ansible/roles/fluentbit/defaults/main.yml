@@ -10,10 +10,12 @@ fluentbit_service_metrics_listen_ip: 0.0.0.0
 fluentbit_service_metrics_listen_port: 2020
 
 # Default inputs
-fluentbit_inputs: []
+fluentbit_inputs:
+  - {"Name": "systemd", "Tag": "host.*"}
 
 # Default outputs
-fluentbit_outputs: []
+fluentbit_outputs:
+  - {"Name": "es", "Host": "localhost", "Port": "9200", "Logstash_Format": "On", "Retry_Limit": "False", "Replace_Dots": "On", "Logstash_Prefix": "localhost"}
 
 fluentbit_additional_conf_files: []
 
