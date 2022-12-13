@@ -37,3 +37,13 @@
     - not ansible_check_mode
   tags:
     - node_exporter_run
+
+- name: Copy the static discovery configuration to Prometheus
+  template:
+    src: node.yaml.j2
+    dest: "{{ prometheus_config_dir }}/file_sd/node.yml"
+    owner: root
+    group: prometheus
+    mode: 0640
+  when: _node_exporter_add_to_local_prometheus == "enable"
+  notify: reload prometheus
