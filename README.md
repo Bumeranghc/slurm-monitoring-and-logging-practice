@@ -18,5 +18,5 @@ Copy ansible directory and align file permissions
 Run playbook with:
 
 ```
-ansible-playbook playbook.yml ...
+ansible-playbook playbook.yml
 ```
